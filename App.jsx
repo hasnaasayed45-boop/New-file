@@ -11,6 +11,10 @@ export default function App() {
   const [name, setName] = useState("");
   const [experience, setExperience] = useState("");
   const [courses, setCourses] = useState("");
+  const [certifications, setCertifications] = useState("");
+  const [capabilities, setCapabilities] = useState("");
+
+  const [editingId, setEditingId] = useState(null);
 
   const [skills, setSkills] = useState({
     Networking: 0,
@@ -21,30 +25,19 @@ export default function App() {
 
   const [projectSkills, setProjectSkills] = useState([]);
   const [results, setResults] = useState([]);
-  const [bestPerSkill, setBestPerSkill] = useState([]);
-  const [team, setTeam] = useState([]);
+  const [team, setTeam] = useState({});
 
   useEffect(() => {
     localStorage.setItem("engineers", JSON.stringify(engineers));
   }, [engineers]);
 
-  function addEngineer() {
-    if (!name) return;
-
-    setEngineers([
-      ...engineers,
-      {
-        id: Date.now(),
-        name,
-        experience,
-        courses,
-        skills
-      }
-    ]);
-
+  function resetForm() {
     setName("");
     setExperience("");
     setCourses("");
+    setCertifications("");
+    setCapabilities("");
+    setEditingId(null);
     setSkills({
       Networking: 0,
       Security: 0,
@@ -53,261 +46,290 @@ export default function App() {
     });
   }
 
+  function addOrUpdateEngineer() {
+    if (!name) return;
+
+    const newEngineer = {
+      id: editingId || Date.now(),
+      name,
+      experience,
+      courses,
+      certifications,
+      capabilities,
+      skills
+    };
+
+    if (editingId) {
+      setEngineers(engineers.map(e => e.id === editingId ? newEngineer : e));
+    } else {
+      setEngineers([...engineers, newEngineer]);
+    }
+
+    resetForm();
+  }
+
   function deleteEngineer(id) {
-    setEngineers(engineers.filter((e) => e.id !== id));
+    setEngineers(engineers.filter(e => e.id !== id));
+  }
+
+  function editEngineer(e) {
+    setName(e.name);
+    setExperience(e.experience);
+    setCourses(e.courses || "");
+    setCertifications(e.certifications || "");
+    setCapabilities(e.capabilities || "");
+    setSkills(e.skills || {
+      Networking: 0,
+      Security: 0,
+      DevOps: 0,
+      Cloud: 0
+    });
+    setEditingId(e.id);
   }
 
   function hasSkillMatch(skill, text) {
-    if (skill === "Networking") {
-      return (
-        text.includes("network") ||
-        text.includes("ccna") ||
-        text.includes("ccnp")
-      );
-    }
+    const t = (text || "").toLowerCase();
 
-    if (skill === "Security") {
-      return (
-        text.includes("security") ||
-        text.includes("cyber") ||
-        text.includes("firewall")
-      );
-    }
-
-    if (skill === "DevOps") {
-      return (
-        text.includes("devops") ||
-        text.includes("docker") ||
-        text.includes("kubernetes")
-      );
-    }
-
-    if (skill === "Cloud") {
-      return (
-        text.includes("cloud") ||
-        text.includes("aws") ||
-        text.includes("azure") ||
-        text.includes("gcp")
-      );
-    }
+    if (skill === "Networking") return t.includes("network") || t.includes("ccna") || t.includes("ccnp");
+    if (skill === "Security") return t.includes("security") || t.includes("cyber");
+    if (skill === "DevOps") return t.includes("devops") || t.includes("docker");
+    if (skill === "Cloud") return t.includes("cloud") || t.includes("aws") || t.includes("azure");
 
     return false;
   }
 
   function matchEngineers() {
-    const matched = engineers
-      .map((e) => {
-        const text = (e.courses || "").toLowerCase();
+    const matched = engineers.map(e => {
+      const text = `${e.courses} ${e.certifications} ${e.capabilities}`;
 
-        let score = 0;
-        let count = 0;
+      let matchedSkills = [];
 
-        projectSkills.forEach((skill) => {
-          if (hasSkillMatch(skill, text)) {
-            score += Number(e.skills[skill] || 0);
-            count++;
-          }
-        });
+      projectSkills.forEach(skill => {
+        const val = e.skills?.[skill] || 0;
+        const match = hasSkillMatch(skill, text) || val >= 5;
 
-        if (count === 0) return null;
+        if (match) {
+          matchedSkills.push(skill);
+        }
+      });
 
-        const rate = Math.round((score / (count * 10)) * 100);
+      if (matchedSkills.length === 0) return null;
 
-        return { ...e, rate };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.rate - a.rate);
+      return { ...e, matchedSkills };
+    }).filter(Boolean);
 
     setResults(matched);
   }
 
-  // 🔥 BEST PER SKILL (FIXED)
-  function findBestPerSkill() {
-    const best = skillOptions.map((skill) => {
-      const valid = engineers.filter((e) => {
-        const text = (e.courses || "").toLowerCase();
-        return hasSkillMatch(skill, text);
-      });
-
-      if (valid.length === 0) return { skill, engineer: null };
-
-      const top = valid.sort(
-        (a, b) => b.skills[skill] - a.skills[skill]
-      )[0];
-
-      return { skill, engineer: top };
-    });
-
-    setBestPerSkill(best);
-  }
-
-  // 🤖 SMART TEAM (MULTI MEMBERS PER SKILL)
+  // 🔥 GROUPED SMART TEAM
   function buildSmartTeam() {
-    const selected = [];
-    const used = new Set();
+    const grouped = {};
 
-    const TOP_N = 2; // 👈 عدد المهندسين لكل skill
+    projectSkills.forEach(skill => {
+      const matchedEngineers = engineers.filter(e => {
+        const text = `${e.courses} ${e.certifications} ${e.capabilities}`.toLowerCase();
+        const skillValue = e.skills?.[skill] || 0;
 
-    projectSkills.forEach((skill) => {
-      const candidates = engineers
-        .filter((e) => {
-          const text = (e.courses || "").toLowerCase();
-          return hasSkillMatch(skill, text);
-        })
-        .sort(
-          (a, b) => b.skills[skill] - a.skills[skill]
-        )
-        .slice(0, TOP_N);
-
-      candidates.forEach((e) => {
-        if (!used.has(e.id)) {
-          selected.push({
-            ...e,
-            assignedSkill: skill
-          });
-          used.add(e.id);
-        }
+        return hasSkillMatch(skill, text) || skillValue >= 5;
       });
+
+      grouped[skill] = matchedEngineers;
     });
 
-    setTeam(selected);
+    setTeam(grouped);
   }
 
   return (
-    <div style={page}>
-      {/* LEFT */}
-      <div style={left}>
-        <h2>Add Engineer</h2>
+    <div style={layout}>
 
-        <input placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} style={input}/>
-        <input placeholder="Experience" value={experience} onChange={(e)=>setExperience(e.target.value)} style={input}/>
-        <input placeholder="Courses (ccna, aws, docker...)" value={courses} onChange={(e)=>setCourses(e.target.value)} style={input}/>
+      {/* SIDEBAR */}
+      <div style={sidebar}>
+        <h2 style={{ color: "#60a5fa" }}>Talent Dashboard</h2>
 
-        <h4>Skills</h4>
+        <h3>{editingId ? "Edit Engineer" : "Add Engineer"}</h3>
 
-        {skillOptions.map((s)=>(
-          <div key={s}>
-            {s}
-            <select
-              value={skills[s]}
-              onChange={(e)=>
-                setSkills({...skills,[s]:Number(e.target.value)})
-              }
-              style={input}
-            >
-              {[0,1,2,3,4,5,6,7,8,9,10].map(n=><option key={n}>{n}</option>)}
-            </select>
-          </div>
-        ))}
+        <input style={input} placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
+        <input style={input} placeholder="Experience" value={experience} onChange={e => setExperience(e.target.value)} />
 
-        <button onClick={addEngineer} style={btn}>Add</button>
+        <input style={input} placeholder="Courses" value={courses} onChange={e => setCourses(e.target.value)} />
+        <input style={input} placeholder="Certifications" value={certifications} onChange={e => setCertifications(e.target.value)} />
+        <input style={input} placeholder="Capabilities" value={capabilities} onChange={e => setCapabilities(e.target.value)} />
 
-        <hr />
-
-        <h3>Engineers</h3>
-
-        {engineers.map((e)=>(
-          <div key={e.id} style={card}>
-            <b>{e.name}</b>
-            <div>{e.courses}</div>
-            <button onClick={()=>deleteEngineer(e.id)} style={btn}>Delete</button>
-          </div>
-        ))}
+        <button style={btn} onClick={addOrUpdateEngineer}>
+          {editingId ? "Update" : "Add Engineer"}
+        </button>
       </div>
 
-      {/* RIGHT */}
-      <div style={right}>
-        <h2>Project Requirements</h2>
+      {/* MAIN */}
+      <div style={main}>
 
-        {skillOptions.map((s)=>(
-          <label key={s}>
-            <input
-              type="checkbox"
-              checked={projectSkills.includes(s)}
-              onChange={(e)=>{
-                if(e.target.checked){
-                  setProjectSkills([...projectSkills,s])
-                }else{
-                  setProjectSkills(projectSkills.filter(x=>x!==s))
-                }
-              }}
-            />
-            {s}
-          </label>
-        ))}
+        <h1>Project Matching Dashboard</h1>
 
-        <br />
+        {/* PROJECT SKILLS */}
+        <div style={card}>
+          <h3>Project Requirements</h3>
 
-        <button onClick={matchEngineers} style={btn}>Match</button>
-        <button onClick={buildSmartTeam} style={btn}>Smart Team 🤖</button>
-        <button onClick={findBestPerSkill} style={btn}>Best Per Skill 🎯</button>
+          {skillOptions.map(s => (
+            <label key={s} style={{ marginRight: 10 }}>
+              <input
+                type="checkbox"
+                checked={projectSkills.includes(s)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setProjectSkills([...projectSkills, s]);
+                  } else {
+                    setProjectSkills(projectSkills.filter(x => x !== s));
+                  }
+                }}
+              />
+              {s}
+            </label>
+          ))}
 
-        <h3>Results</h3>
-        {results.map(e=>(
-          <div key={e.id} style={card}>
-            {e.name} — {e.rate}%
+          <div style={{ marginTop: 10 }}>
+            <button style={btn} onClick={matchEngineers}>Match</button>
+            <button style={btn} onClick={buildSmartTeam}>Build Team</button>
           </div>
-        ))}
+        </div>
 
-        <h3>Smart Team</h3>
-        {team.map((e)=>(
-          <div key={e.id} style={card}>
-            <b>{e.name}</b>
-            <div>Role: {e.assignedSkill}</div>
-          </div>
-        ))}
+        {/* ENGINEERS + RESULTS */}
+        <div style={grid}>
 
-        <h3>Best Per Skill</h3>
-        {bestPerSkill.map((b,i)=>(
-          <div key={i} style={card}>
-            <b>{b.skill}</b> : {b.engineer?.name || "None"}
+          {/* ENGINEERS */}
+          <div style={card}>
+            <h3>Engineers</h3>
+
+            {engineers.map(e => (
+              <div key={e.id} style={miniCard}>
+                <b>{e.name}</b>
+
+                <div style={{ fontSize: "12px", opacity: 0.85, marginTop: 4 }}>
+                  <div>📚 Courses: {e.courses || "None"}</div>
+                  <div>🏆 Certifications: {e.certifications || "None"}</div>
+                </div>
+
+                <div>{e.experience} yrs</div>
+
+                <div style={{ marginTop: 8, display: "flex", gap: 5 }}>
+                  <button style={btn} onClick={() => editEngineer(e)}>Edit</button>
+                  <button style={danger} onClick={() => deleteEngineer(e.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+
+          {/* MATCH RESULTS */}
+          <div style={card}>
+            <h3>Match Results</h3>
+
+            {results.map(e => (
+              <div key={e.id} style={miniCard}>
+                <b>{e.name}</b>
+                <div>
+                  <b>Matched Skills:</b> {e.matchedSkills?.join(", ")}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* SMART TEAM GROUPED */}
+          <div style={card}>
+            <h3>Smart Team</h3>
+
+            {Object.keys(team).length === 0 ? (
+              <div>No team generated yet</div>
+            ) : (
+              Object.keys(team).map(skill => (
+                <div key={skill} style={miniCard}>
+                  <b>{skill}</b>
+
+                  <div style={{ marginTop: 5 }}>
+                    <b>Assigned:</b>{" "}
+                    {team[skill]?.length
+                      ? team[skill].map(e => e.name).join(", ")
+                      : "None"}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   );
 }
 
-const page = {
-  display:"flex",
-  fontFamily:"Arial",
-  background:"#0f172a",
-  color:"white",
-  minHeight:"100vh"
+/* ===== UI ===== */
+
+const layout = {
+  display: "flex",
+  minHeight: "100vh",
+  fontFamily: "Arial",
+  background: "#0b1220",
+  color: "white"
 };
 
-const left = {
-  width:"40%",
-  padding:20,
-  background:"#1e293b"
+const sidebar = {
+  width: "300px",
+  padding: "20px",
+  background: "#111827",
+  borderRight: "1px solid #1f2937"
 };
 
-const right = {
-  width:"60%",
-  padding:20
-};
-
-const input = {
-  display:"block",
-  margin:"5px 0",
-  padding:8,
-  width:"100%",
-  background:"#334155",
-  color:"white"
-};
-
-const btn = {
-  margin:"5px",
-  padding:"8px",
-  background:"#2563eb",
-  color:"white",
-  border:"none",
-  cursor:"pointer"
+const main = {
+  flex: 1,
+  padding: "20px"
 };
 
 const card = {
-  padding:10,
-  margin:"10px 0",
-  background:"#1f2937",
-  border:"1px solid #374151"
+  background: "#111827",
+  padding: "15px",
+  borderRadius: "12px",
+  border: "1px solid #1f2937",
+  marginBottom: "15px"
+};
+
+const grid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, 1fr)",
+  gap: "15px"
+};
+
+const miniCard = {
+  padding: "10px",
+  marginTop: "10px",
+  background: "#0f172a",
+  borderRadius: "10px",
+  border: "1px solid #1f2937"
+};
+
+const input = {
+  width: "100%",
+  padding: "8px",
+  margin: "5px 0",
+  background: "#0f172a",
+  border: "1px solid #334155",
+  color: "white",
+  borderRadius: "6px"
+};
+
+const btn = {
+  padding: "8px 12px",
+  marginRight: "5px",
+  background: "#2563eb",
+  color: "white",
+  border: "none",
+  borderRadius: "6px",
+  cursor: "pointer"
+};
+
+const danger = {
+  padding: "5px 8px",
+  marginTop: "5px",
+  background: "#dc2626",
+  color: "white",
+  border: "none",
+  borderRadius: "6px",
+  cursor: "pointer"
 };
