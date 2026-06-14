@@ -86,17 +86,101 @@ export default function App() {
     });
     setEditingId(e.id);
   }
+const skillKeywords = {
+  Networking: [
+    "network",
+    "ccna",
+    "ccnp",
+    "enarsi",
+    "encor",
+    "ccie",
+    "jncia",
+    "jncis",
+    "jncip",
+    "hcia",
+    "hcip",
+    "hcie",
+    "mtcna",
+    "mtcre"
+  ],
 
-  function hasSkillMatch(skill, text) {
-    const t = (text || "").toLowerCase();
+  Security: [
+    "security",
+    "cyber",
+    "security+",
+    "cysa",
+    "casp",
+    "ceh",
+    "cissp",
+    "cism",
+    "fortinet",
+    "fortigate",
+    "nse",
+    "fcp",
+    "fcss",
+    "pcnse",
+    "palo alto",
+    "checkpoint",
+    "ccsa",
+    "ccse",
+    "sc-900",
+    "sc-200",
+    "sc-300",
+    "sc-100",
+    "az-500"
+  ],
 
-    if (skill === "Networking") return t.includes("network") || t.includes("ccna") || t.includes("ccnp");
-    if (skill === "Security") return t.includes("security") || t.includes("cyber");
-    if (skill === "DevOps") return t.includes("devops") || t.includes("docker");
-    if (skill === "Cloud") return t.includes("cloud") || t.includes("aws") || t.includes("azure");
+  Cloud: [
+    "cloud",
+    "azure",
+    "aws",
+    "gcp",
+    "az-900",
+    "az900",
+    "azure fundamentals",
+    "az-104",
+    "az104",
+    "az-305",
+    "az305",
+    "az-700",
+    "az700",
+    "az-500",
+    "aws ccp",
+    "aws saa",
+    "aws sap",
+    "aws sysops",
+    "terraform",
+    "openstack",
+    "google cloud",
+    "gcp ace",
+    "gcp pca"
+  ],
 
-    return false;
-  }
+  DevOps: [
+    "devops",
+    "docker",
+    "kubernetes",
+    "k8s",
+    "cka",
+    "ckad",
+    "terraform",
+    "ansible",
+    "jenkins",
+    "gitlab",
+    "github actions",
+    "argocd",
+    "helm",
+    "prometheus",
+    "grafana",
+    "openshift"
+  ]
+};
+function hasSkillMatch(skill, text) {
+  const t = (text || "").toLowerCase();
+  const keywords = skillKeywords[skill] || [];
+
+  return keywords.some(k => t.includes(k.toLowerCase()));
+}
 
   function matchEngineers() {
     const matched = engineers.map(e => {
