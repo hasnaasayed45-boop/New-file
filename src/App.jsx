@@ -1,98 +1,32 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-export default function App() {
-  const skillOptions = ["Networking", "Security", "DevOps", "Cloud"];
+const skillOptions = [
+  "Networking",
+  "Security",
+  "Cloud",
+  "DevOps",
+  "AI",
+  "Automation",
+  "Business",
+];
 
-  const [engineers, setEngineers] = useState(() => {
-    const saved = localStorage.getItem("engineers");
-    return saved ? JSON.parse(saved) : [];
-  });
+const defaultSkills = {
+  Networking: 0,
+  Security: 0,
+  Cloud: 0,
+  DevOps: 0,
+  AI: 0,
+  Automation: 0,
+  Business: 0,
+};
 
-  const [name, setName] = useState("");
-  const [experience, setExperience] = useState("");
-  const [courses, setCourses] = useState("");
-  const [certifications, setCertifications] = useState("");
-  const [capabilities, setCapabilities] = useState("");
-
-  const [editingId, setEditingId] = useState(null);
-
-  const [skills, setSkills] = useState({
-    Networking: 0,
-    Security: 0,
-    DevOps: 0,
-    Cloud: 0
-  });
-
-  const [projectSkills, setProjectSkills] = useState([]);
-  const [results, setResults] = useState([]);
-  const [team, setTeam] = useState({});
-
-  useEffect(() => {
-    localStorage.setItem("engineers", JSON.stringify(engineers));
-  }, [engineers]);
-
-  function resetForm() {
-    setName("");
-    setExperience("");
-    setCourses("");
-    setCertifications("");
-    setCapabilities("");
-    setEditingId(null);
-    setSkills({
-      Networking: 0,
-      Security: 0,
-      DevOps: 0,
-      Cloud: 0
-    });
-  }
-
-  function addOrUpdateEngineer() {
-    if (!name) return;
-
-    const newEngineer = {
-      id: editingId || Date.now(),
-      name,
-      experience,
-      courses,
-      certifications,
-      capabilities,
-      skills
-    };
-
-    if (editingId) {
-      setEngineers(engineers.map(e => e.id === editingId ? newEngineer : e));
-    } else {
-      setEngineers([...engineers, newEngineer]);
-    }
-
-    resetForm();
-  }
-
-  function deleteEngineer(id) {
-    setEngineers(engineers.filter(e => e.id !== id));
-  }
-
-  function editEngineer(e) {
-    setName(e.name);
-    setExperience(e.experience);
-    setCourses(e.courses || "");
-    setCertifications(e.certifications || "");
-    setCapabilities(e.capabilities || "");
-    setSkills(e.skills || {
-      Networking: 0,
-      Security: 0,
-      DevOps: 0,
-      Cloud: 0
-    });
-    setEditingId(e.id);
-  }
 const skillKeywords = {
   Networking: [
     "network",
     "ccna",
     "ccnp",
-    "enarsi",
     "encor",
+    "enarsi",
     "ccie",
     "jncia",
     "jncis",
@@ -101,9 +35,8 @@ const skillKeywords = {
     "hcip",
     "hcie",
     "mtcna",
-    "mtcre"
+    "mtcre",
   ],
-
   Security: [
     "security",
     "cyber",
@@ -127,35 +60,24 @@ const skillKeywords = {
     "sc-200",
     "sc-300",
     "sc-100",
-    "az-500"
+    "az-500",
   ],
-
   Cloud: [
     "cloud",
     "azure",
     "aws",
     "gcp",
     "az-900",
-    "az900",
-    "azure fundamentals",
-    "az-104",
     "az104",
-    "az-305",
+    "az-104",
     "az305",
-    "az-700",
+    "az-305",
     "az700",
-    "az-500",
-    "aws ccp",
-    "aws saa",
-    "aws sap",
-    "aws sysops",
+    "az-700",
     "terraform",
     "openstack",
     "google cloud",
-    "gcp ace",
-    "gcp pca"
   ],
-
   DevOps: [
     "devops",
     "docker",
@@ -168,252 +90,1025 @@ const skillKeywords = {
     "jenkins",
     "gitlab",
     "github actions",
-    "argocd",
     "helm",
-    "prometheus",
+    "argocd",
     "grafana",
-    "openshift"
-  ]
+    "prometheus",
+  ],
+  AI: [
+    "ai",
+    "artificial intelligence",
+    "machine learning",
+    "ml",
+    "deep learning",
+    "data science",
+    "python",
+    "tensorflow",
+    "pytorch",
+    "openai",
+    "llm",
+    "genai",
+    "prompt engineering",
+    "chatbot",
+  ],
+  Automation: [
+    "automation",
+    "automate",
+    "scripting",
+    "script",
+    "powershell",
+    "python",
+    "bash",
+    "ansible",
+    "rpa",
+    "uipath",
+    "power automate",
+    "workflow",
+    "orchestration",
+    "ci/cd",
+  ],
+  Business: [
+    "business",
+    "business analysis",
+    "ba",
+    "requirements",
+    "stakeholder",
+    "process",
+    "process improvement",
+    "kpi",
+    "reporting",
+    "dashboard",
+    "power bi",
+    "excel",
+    "presentation",
+    "communication",
+  ],
 };
-function hasSkillMatch(skill, text) {
-  const t = (text || "").toLowerCase();
-  const keywords = skillKeywords[skill] || [];
 
-  return keywords.some(k => t.includes(k.toLowerCase()));
+function loadEngineers() {
+  try {
+    const saved = localStorage.getItem("engineers");
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
-  function matchEngineers() {
-    const matched = engineers.map(e => {
-      const text = `${e.courses} ${e.certifications} ${e.capabilities}`;
+function hasSkillMatch(skill, text) {
+  const lowerText = String(text || "").toLowerCase();
+  return (skillKeywords[skill] || []).some((keyword) =>
+    lowerText.includes(keyword.toLowerCase())
+  );
+}
 
-      let matchedSkills = [];
+function getMatchedKeywords(skill, text) {
+  const lowerText = String(text || "").toLowerCase();
+  return (skillKeywords[skill] || []).filter((keyword) =>
+    lowerText.includes(keyword.toLowerCase())
+  );
+}
 
-      projectSkills.forEach(skill => {
-        const val = e.skills?.[skill] || 0;
-        const match = hasSkillMatch(skill, text) || val >= 5;
+function Badge({ children }) {
+  return <span className="badge">{children}</span>;
+}
 
-        if (match) {
-          matchedSkills.push(skill);
+export default function App() {
+  const [engineers, setEngineers] = useState(loadEngineers);
+  const [name, setName] = useState("");
+  const [experience, setExperience] = useState("");
+  const [courses, setCourses] = useState("");
+  const [certifications, setCertifications] = useState("");
+  const [capabilities, setCapabilities] = useState("");
+  const [skills, setSkills] = useState({ ...defaultSkills });
+  const [editingId, setEditingId] = useState(null);
+  const [projectSkills, setProjectSkills] = useState([]);
+  const [results, setResults] = useState([]);
+  const [team, setTeam] = useState({});
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem("engineers", JSON.stringify(engineers));
+  }, [engineers]);
+
+  const filteredEngineers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return engineers.filter((engineer) => {
+      const text = `${engineer.name || ""} ${engineer.courses || ""} ${
+        engineer.certifications || ""
+      } ${engineer.capabilities || ""}`.toLowerCase();
+
+      return text.includes(query);
+    });
+  }, [engineers, search]);
+
+  const seniorProfiles = useMemo(() => {
+    return engineers.filter((engineer) => Number(engineer.experience) >= 10).length;
+  }, [engineers]);
+
+  function resetForm() {
+    setName("");
+    setExperience("");
+    setCourses("");
+    setCertifications("");
+    setCapabilities("");
+    setSkills({ ...defaultSkills });
+    setEditingId(null);
+  }
+
+  function addOrUpdateEngineer() {
+    if (!name.trim()) return;
+
+    const engineer = {
+      id: editingId || Date.now(),
+      name: name.trim(),
+      experience,
+      courses,
+      certifications,
+      capabilities,
+      skills,
+    };
+
+    if (editingId) {
+      setEngineers((current) =>
+        current.map((item) => (item.id === editingId ? engineer : item))
+      );
+    } else {
+      setEngineers((current) => [...current, engineer]);
+    }
+
+    resetForm();
+  }
+
+  function deleteEngineer(id) {
+    setEngineers((current) => current.filter((engineer) => engineer.id !== id));
+    setResults((current) => current.filter((engineer) => engineer.id !== id));
+  }
+
+  function editEngineer(engineer) {
+    setName(engineer.name || "");
+    setExperience(engineer.experience || "");
+    setCourses(engineer.courses || "");
+    setCertifications(engineer.certifications || "");
+    setCapabilities(engineer.capabilities || "");
+    setSkills({ ...defaultSkills, ...(engineer.skills || {}) });
+    setEditingId(engineer.id);
+  }
+
+  function toggleProjectSkill(skill) {
+    setProjectSkills((current) =>
+      current.includes(skill)
+        ? current.filter((item) => item !== skill)
+        : [...current, skill]
+    );
+  }
+
+  function updateSkill(skill, value) {
+    setSkills((current) => ({
+      ...current,
+      [skill]: Number(value),
+    }));
+  }
+
+  function scoreEngineer(engineer, selectedSkills = projectSkills) {
+    const text = `${engineer.courses || ""} ${engineer.certifications || ""} ${
+      engineer.capabilities || ""
+    }`;
+    const experienceYears = Number(engineer.experience) || 0;
+    const matchedSkills = [];
+    const reasons = [];
+    let totalScore = 0;
+
+    selectedSkills.forEach((skill) => {
+      const level = engineer.skills?.[skill] || 0;
+      const matchedKeywords = getMatchedKeywords(skill, text);
+      let skillScore = 0;
+
+      if (level > 0) {
+        skillScore += Math.min(level * 5, 50);
+      }
+
+      if (matchedKeywords.length > 0) {
+        skillScore += Math.min(matchedKeywords.length * 10, 30);
+      }
+
+      if (experienceYears >= 10) {
+        skillScore += 10;
+      } else if (experienceYears >= 5) {
+        skillScore += 6;
+      } else if (experienceYears >= 1) {
+        skillScore += 3;
+      }
+
+      if (level >= 8) {
+        skillScore += 10;
+      }
+
+      if (skillScore > 0 && (level >= 5 || matchedKeywords.length > 0)) {
+        matchedSkills.push(skill);
+
+        if (matchedKeywords.length > 0) {
+          reasons.push(
+            `${skill}: ${matchedKeywords.slice(0, 3).join(", ")}`
+          );
         }
-      });
+      }
 
-      if (matchedSkills.length === 0) return null;
+      totalScore += skillScore;
+    });
 
-      return { ...e, matchedSkills };
-    }).filter(Boolean);
+    const averageScore =
+      selectedSkills.length > 0
+        ? Math.round(Math.min(totalScore / selectedSkills.length, 100))
+        : 0;
+
+    return {
+      matchedSkills,
+      reasons,
+      score: averageScore,
+    };
+  }
+
+  function matchEngineers() {
+    const matched = engineers
+      .map((engineer) => {
+        const match = scoreEngineer(engineer);
+        return match.matchedSkills.length ? { ...engineer, ...match } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
 
     setResults(matched);
   }
 
-  // 🔥 GROUPED SMART TEAM
   function buildSmartTeam() {
     const grouped = {};
 
-    projectSkills.forEach(skill => {
-      const matchedEngineers = engineers.filter(e => {
-        const text = `${e.courses} ${e.certifications} ${e.capabilities}`.toLowerCase();
-        const skillValue = e.skills?.[skill] || 0;
+    projectSkills.forEach((skill) => {
+      const candidates = engineers
+        .map((engineer) => {
+          const match = scoreEngineer(engineer, [skill]);
+          return match.matchedSkills.length ? { ...engineer, ...match } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score);
 
-        return hasSkillMatch(skill, text) || skillValue >= 5;
-      });
-
-      grouped[skill] = matchedEngineers;
+      grouped[skill] = {
+        best: candidates[0] || null,
+        candidates: candidates.slice(1, 4),
+      };
     });
 
     setTeam(grouped);
   }
 
   return (
-    <div style={layout}>
+    <div className="app">
+      <style>{css}</style>
 
-      {/* SIDEBAR */}
-      <div style={sidebar}>
-        <h2 style={{ color: "#60a5fa" }}>Talent Dashboard</h2>
-
-        <h3>{editingId ? "Edit Engineer" : "Add Engineer"}</h3>
-
-        <input style={input} placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
-        <input style={input} placeholder="Experience" value={experience} onChange={e => setExperience(e.target.value)} />
-
-        <input style={input} placeholder="Courses" value={courses} onChange={e => setCourses(e.target.value)} />
-        <input style={input} placeholder="Certifications" value={certifications} onChange={e => setCertifications(e.target.value)} />
-        <input style={input} placeholder="Capabilities" value={capabilities} onChange={e => setCapabilities(e.target.value)} />
-
-        <button style={btn} onClick={addOrUpdateEngineer}>
-          {editingId ? "Update" : "Add Engineer"}
-        </button>
-      </div>
-
-      {/* MAIN */}
-      <div style={main}>
-
-        <h1>Project Matching Dashboard</h1>
-
-        {/* PROJECT SKILLS */}
-        <div style={card}>
-          <h3>Project Requirements</h3>
-
-          {skillOptions.map(s => (
-            <label key={s} style={{ marginRight: 10 }}>
-              <input
-                type="checkbox"
-                checked={projectSkills.includes(s)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setProjectSkills([...projectSkills, s]);
-                  } else {
-                    setProjectSkills(projectSkills.filter(x => x !== s));
-                  }
-                }}
-              />
-              {s}
-            </label>
-          ))}
-
-          <div style={{ marginTop: 10 }}>
-            <button style={btn} onClick={matchEngineers}>Match</button>
-            <button style={btn} onClick={buildSmartTeam}>Build Team</button>
+      <header className="header">
+        <div className="brand">
+          <div className="logo">
+            <img src="/vodafone-logo.png" alt="" />
+            <span>V</span>
+          </div>
+          <div>
+            <h1>Vodafone Talent Portal</h1>
+            <p>Talent Matching Platform</p>
           </div>
         </div>
+        <div className="header-chip">Engineering Capability Hub</div>
+      </header>
 
-        {/* ENGINEERS + RESULTS */}
-        <div style={grid}>
-
-          {/* ENGINEERS */}
-          <div style={card}>
-            <h3>Engineers</h3>
-
-            {engineers.map(e => (
-              <div key={e.id} style={miniCard}>
-                <b>{e.name}</b>
-
-                <div style={{ fontSize: "12px", opacity: 0.85, marginTop: 4 }}>
-                  <div>📚 Courses: {e.courses || "None"}</div>
-                  <div>🏆 Certifications: {e.certifications || "None"}</div>
-                </div>
-
-                <div>{e.experience} yrs</div>
-
-                <div style={{ marginTop: 8, display: "flex", gap: 5 }}>
-                  <button style={btn} onClick={() => editEngineer(e)}>Edit</button>
-                  <button style={danger} onClick={() => deleteEngineer(e.id)}>Delete</button>
-                </div>
-              </div>
-            ))}
+      <main className="main">
+        <section className="dashboard">
+          <div className="stat stat-red">
+            <span>Total Engineers</span>
+            <strong>{engineers.length}</strong>
           </div>
-
-          {/* MATCH RESULTS */}
-          <div style={card}>
-            <h3>Match Results</h3>
-
-            {results.map(e => (
-              <div key={e.id} style={miniCard}>
-                <b>{e.name}</b>
-                <div>
-                  <b>Matched Skills:</b> {e.matchedSkills?.join(", ")}
-                </div>
-              </div>
-            ))}
+          <div className="stat">
+            <span>Project Skills</span>
+            <strong>{projectSkills.length}</strong>
           </div>
+          <div className="stat stat-green">
+            <span>Match Results</span>
+            <strong>{results.length}</strong>
+          </div>
+          <div className="stat">
+            <span>Senior Profiles</span>
+            <strong>{seniorProfiles}</strong>
+          </div>
+        </section>
 
-          {/* SMART TEAM GROUPED */}
-          <div style={card}>
-            <h3>Smart Team</h3>
+        <section className="top-grid">
+          <div className="card">
+            <div className="section-title">
+              <h2>{editingId ? "Edit Engineer" : "Add Engineer"}</h2>
+              <p>Add engineer profile, skills, courses, and certifications.</p>
+            </div>
 
-            {Object.keys(team).length === 0 ? (
-              <div>No team generated yet</div>
-            ) : (
-              Object.keys(team).map(skill => (
-                <div key={skill} style={miniCard}>
-                  <b>{skill}</b>
+            <div className="form-grid">
+              <label>
+                <span>Full Name</span>
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Engineer name"
+                />
+              </label>
 
-                  <div style={{ marginTop: 5 }}>
-                    <b>Assigned:</b>{" "}
-                    {team[skill]?.length
-                      ? team[skill].map(e => e.name).join(", ")
-                      : "None"}
+              <label>
+                <span>Experience</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={experience}
+                  onChange={(event) => setExperience(event.target.value)}
+                  placeholder="Years"
+                />
+              </label>
+
+              <label className="wide">
+                <span>Courses</span>
+                <textarea
+                  value={courses}
+                  onChange={(event) => setCourses(event.target.value)}
+                  placeholder="CCNA, Azure, Kubernetes..."
+                />
+              </label>
+
+              <label className="wide">
+                <span>Certifications</span>
+                <textarea
+                  value={certifications}
+                  onChange={(event) => setCertifications(event.target.value)}
+                  placeholder="CCNP, AZ-104, Security+..."
+                />
+              </label>
+
+              <label className="wide">
+                <span>Capabilities</span>
+                <textarea
+                  value={capabilities}
+                  onChange={(event) => setCapabilities(event.target.value)}
+                  placeholder="Routing, firewall policies, cloud migration..."
+                />
+              </label>
+            </div>
+
+            <div className="skill-grid">
+              {skillOptions.map((skill) => (
+                <label className="skill-control" key={skill}>
+                  <span>{skill}</span>
+                  <div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      value={skills[skill] || 0}
+                      onChange={(event) => updateSkill(skill, event.target.value)}
+                    />
+                    <strong>{skills[skill] || 0}</strong>
                   </div>
-                </div>
-              ))
-            )}
+                </label>
+              ))}
+            </div>
+
+            <div className="actions">
+              <button className="primary" onClick={addOrUpdateEngineer}>
+                {editingId ? "Update Engineer" : "Add Engineer"}
+              </button>
+              {editingId && (
+                <button className="secondary" onClick={resetForm}>
+                  Cancel
+                </button>
+              )}
+            </div>
           </div>
 
-        </div>
-      </div>
+          <div className="card">
+            <div className="section-title">
+              <h2>Project Requirements</h2>
+              <p>Select required skills, then match or build a team.</p>
+            </div>
+
+            <div className="requirements">
+              {skillOptions.map((skill) => {
+                const active = projectSkills.includes(skill);
+
+                return (
+                  <button
+                    className={active ? "requirement active" : "requirement"}
+                    key={skill}
+                    type="button"
+                    onClick={() => toggleProjectSkill(skill)}
+                  >
+                    <span>{skill}</span>
+                    <strong>{active ? "Selected" : "Add"}</strong>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="actions">
+              <button className="primary" onClick={matchEngineers}>
+                Match
+              </button>
+              <button className="dark" onClick={buildSmartTeam}>
+                Smart Team
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="content-grid">
+          <div className="card engineers-card">
+            <div className="section-title">
+              <h2>Engineers ({filteredEngineers.length})</h2>
+              <p>Search and manage all profiles.</p>
+            </div>
+
+            <input
+              className="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by name, course, certification, or capability..."
+            />
+
+            <div className="list">
+              {filteredEngineers.length === 0 ? (
+                <div className="empty">No engineers found.</div>
+              ) : (
+                filteredEngineers.map((engineer) => (
+                  <article className="engineer" key={engineer.id}>
+                    <div className="engineer-head">
+                      <div>
+                        <h3>{engineer.name}</h3>
+                        <p>{engineer.experience || 0} years experience</p>
+                      </div>
+                      <div className="row-actions">
+                        <button
+                          className="small"
+                          onClick={() => editEngineer(engineer)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="danger"
+                          onClick={() => deleteEngineer(engineer.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="details">
+                      <p>
+                        <b>Courses:</b> {engineer.courses || "None"}
+                      </p>
+                      <p>
+                        <b>Certifications:</b>{" "}
+                        {engineer.certifications || "None"}
+                      </p>
+                      <p>
+                        <b>Capabilities:</b> {engineer.capabilities || "None"}
+                      </p>
+                    </div>
+
+                    <div className="badges">
+                      {skillOptions.map((skill) => (
+                        <Badge key={skill}>
+                          {skill}: {engineer.skills?.[skill] || 0}
+                        </Badge>
+                      ))}
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="section-title">
+              <h2>Match Results</h2>
+              <p>Engineers matching selected requirements.</p>
+            </div>
+
+            <div className="list">
+              {results.length === 0 ? (
+                <div className="empty">No matching engineers yet.</div>
+              ) : (
+                results.map((engineer) => (
+                  <article className="compact" key={engineer.id}>
+                    <h3>{engineer.name}</h3>
+                    <div className="badges">
+                      {engineer.matchedSkills.map((skill) => (
+                        <Badge key={skill}>{skill}</Badge>
+                      ))}
+                    </div>
+                    <p className="match-courses">
+                      <b>Courses:</b> {engineer.courses || "None"}
+                    </p>
+                    <ul className="reason-list">
+                      {engineer.reasons.slice(0, 4).map((reason) => (
+                        <li key={reason}>{reason}</li>
+                      ))}
+                    </ul>
+                  </article>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="section-title">
+              <h2>Smart Team</h2>
+              <p>Suggested engineers grouped by skill.</p>
+            </div>
+
+            <div className="list">
+              {Object.keys(team).length === 0 ? (
+                <div className="empty">No team generated.</div>
+              ) : (
+                Object.keys(team).map((skill) => (
+                  <article className="compact" key={skill}>
+                    <h3>{skill}</h3>
+                    {team[skill].best ? (
+                      <>
+                        <p className="team-names">
+                          <b>Best Fit:</b> {team[skill].best.name}
+                        </p>
+                        <p className="match-courses">
+                          <b>Courses:</b> {team[skill].best.courses || "None"}
+                        </p>
+                        <ul className="reason-list">
+                          {team[skill].best.reasons.slice(0, 3).map((reason) => (
+                            <li key={reason}>{reason}</li>
+                          ))}
+                        </ul>
+                        {team[skill].candidates.length > 0 && (
+                          <p className="team-names">
+                            Alternatives:{" "}
+                            {team[skill].candidates
+                              .map((engineer) => engineer.name)
+                              .join(", ")}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="team-names">No engineers</p>
+                    )}
+                  </article>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
 
-/* ===== UI ===== */
+const css = `
+* {
+  box-sizing: border-box;
+}
 
-const layout = {
-  display: "flex",
-  minHeight: "100vh",
-  fontFamily: "Arial",
-  background: "#0b1220",
-  color: "white"
-};
+body {
+  margin: 0;
+}
 
-const sidebar = {
-  width: "300px",
-  padding: "20px",
-  background: "#111827",
-  borderRight: "1px solid #1f2937"
-};
+.app {
+  min-height: 100vh;
+  background: #f4f6f8;
+  color: #1f2937;
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+}
 
-const main = {
-  flex: 1,
-  padding: "20px"
-};
+.header {
+  min-height: 88px;
+  padding: 18px 32px;
+  background: linear-gradient(135deg, #e60000, #a90018);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  box-shadow: 0 14px 28px rgba(94, 0, 0, 0.2);
+}
 
-const card = {
-  background: "#111827",
-  padding: "15px",
-  borderRadius: "12px",
-  border: "1px solid #1f2937",
-  marginBottom: "15px"
-};
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 
-const grid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
-  gap: "15px"
-};
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
+  flex: 0 0 auto;
+}
 
-const miniCard = {
-  padding: "10px",
-  marginTop: "10px",
-  background: "#0f172a",
-  borderRadius: "10px",
-  border: "1px solid #1f2937"
-};
+.logo img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  position: relative;
+  z-index: 2;
+}
 
-const input = {
-  width: "100%",
-  padding: "8px",
-  margin: "5px 0",
-  background: "#0f172a",
-  border: "1px solid #334155",
-  color: "white",
-  borderRadius: "6px"
-};
+.logo span {
+  position: absolute;
+  color: #e60000;
+  font-weight: 900;
+  font-size: 30px;
+}
 
-const btn = {
-  padding: "8px 12px",
-  marginRight: "5px",
-  background: "#2563eb",
-  color: "white",
-  border: "none",
-  borderRadius: "6px",
-  cursor: "pointer"
-};
+.brand h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.1;
+}
 
-const danger = {
-  padding: "5px 8px",
-  marginTop: "5px",
-  background: "#dc2626",
-  color: "white",
-  border: "none",
-  borderRadius: "6px",
-  cursor: "pointer"
-};
+.brand p {
+  margin: 5px 0 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 14px;
+}
+
+.header-chip {
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.main {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.dashboard,
+.top-grid,
+.content-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.dashboard {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.top-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+}
+
+.content-grid {
+  grid-template-columns: minmax(360px, 1.3fr) minmax(260px, 0.85fr) minmax(260px, 0.85fr);
+  align-items: start;
+}
+
+.stat,
+.card {
+  background: #fff;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+}
+
+.stat {
+  padding: 18px;
+  border-top: 4px solid #2f3a45;
+}
+
+.stat-red {
+  border-top-color: #e60000;
+}
+
+.stat-green {
+  border-top-color: #0f9d58;
+}
+
+.stat span {
+  display: block;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.stat strong {
+  display: block;
+  margin-top: 8px;
+  color: #101828;
+  font-size: 30px;
+}
+
+.card {
+  padding: 20px;
+}
+
+.section-title {
+  margin-bottom: 16px;
+}
+
+.section-title h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 20px;
+}
+
+.section-title p {
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 150px;
+  gap: 14px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+label span {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #cfd6df;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+input {
+  height: 42px;
+  padding: 0 12px;
+}
+
+textarea {
+  min-height: 72px;
+  padding: 12px;
+  resize: vertical;
+}
+
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #edf0f3;
+}
+
+.skill-control div {
+  display: grid;
+  grid-template-columns: 1fr 34px;
+  align-items: center;
+  gap: 10px;
+}
+
+.skill-control input {
+  height: auto;
+  padding: 0;
+  accent-color: #e60000;
+}
+
+.skill-control strong {
+  color: #e60000;
+  text-align: right;
+}
+
+.requirements {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.requirement {
+  min-height: 74px;
+  border: 1px solid #d9dfe7;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #1f2937;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.requirement.active {
+  border-color: #e60000;
+  background: #fff1f1;
+  color: #b00020;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+button {
+  min-height: 40px;
+  border-radius: 8px;
+  padding: 0 15px;
+  border: 0;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary {
+  background: #e60000;
+  color: #fff;
+}
+
+.secondary,
+.small {
+  border: 1px solid #cfd6df;
+  background: #fff;
+  color: #344054;
+}
+
+.dark {
+  background: #242b33;
+  color: #fff;
+}
+
+.danger {
+  background: #b42318;
+  color: #fff;
+}
+
+.small,
+.danger {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.search {
+  margin-bottom: 14px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.engineer,
+.compact,
+.empty {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 15px;
+}
+
+.empty {
+  min-height: 76px;
+  display: grid;
+  place-items: center;
+  color: #667085;
+  font-weight: 700;
+  text-align: center;
+  border-style: dashed;
+}
+
+.engineer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.engineer h3,
+.compact h3 {
+  margin: 0;
+  color: #101828;
+  font-size: 16px;
+}
+
+.engineer-head p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.details {
+  margin-top: 12px;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.details p {
+  margin: 5px 0;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.badge {
+  min-height: 26px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #eef2f6;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.team-names {
+  margin: 10px 0 0;
+  color: #475467;
+  line-height: 1.5;
+}
+
+.match-courses {
+  margin: 10px 0 0;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.reason-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  .top-grid,
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .header,
+  .main {
+    padding: 18px;
+  }
+
+  .brand h1 {
+    font-size: 21px;
+  }
+
+  .form-grid,
+  .requirements {
+    grid-template-columns: 1fr;
+  }
+
+  .engineer-head {
+    flex-direction: column;
+  }
+}
+`;
