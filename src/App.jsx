@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "./supabase";
+
 const skillOptions = [
   "Networking",
   "Security",
@@ -145,7 +145,15 @@ const skillKeywords = {
   ],
 };
 
-
+function loadEngineers() {
+  try {
+    const saved = localStorage.getItem("engineers");
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function hasSkillMatch(skill, text) {
   const lowerText = String(text || "").toLowerCase();
@@ -166,7 +174,7 @@ function Badge({ children }) {
 }
 
 export default function App() {
-  const [engineers, setEngineers] = useState([]);
+  const [engineers, setEngineers] = useState(loadEngineers);
   const [name, setName] = useState("");
   const [experience, setExperience] = useState("");
   const [courses, setCourses] = useState("");
@@ -181,22 +189,8 @@ export default function App() {
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   useEffect(() => {
-  loadEngineers();
-}, []);
-
-async function loadEngineers() {
-  const { data, error } = await supabase
-    .from("engineers")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error(error);
-    return;
-  }
-
-  setEngineers(data || []);
-}
+    localStorage.setItem("engineers", JSON.stringify(engineers));
+  }, [engineers]);
 
   useEffect(() => {
     if (!isAddOpen) return;
@@ -247,7 +241,7 @@ async function loadEngineers() {
     resetForm();
   }
 
-  async function addOrUpdateEngineer() {
+  function addOrUpdateEngineer() {
     if (!name.trim()) return;
 
     const engineer = {
@@ -261,44 +255,11 @@ async function loadEngineers() {
     };
 
     if (editingId) {
-      const { error } = await supabase
-  .from("engineers")
-  .update({
-    name: engineer.name,
-    experience: Number(engineer.experience),
-    courses: engineer.courses,
-    certifications: engineer.certifications,
-    capabilities: engineer.capabilities,
-    skills: engineer.skills,
-  })
-  .eq("id", editingId);
-
-if (error) {
-  console.error(error);
-  alert(error.message);
-  return;
-}
-
-await loadEngineers();
+      setEngineers((current) =>
+        current.map((item) => (item.id === editingId ? engineer : item))
+      );
     } else {
-      const { error } = await supabase.from("engineers").insert([
-  {
-    name: engineer.name,
-    experience: Number(engineer.experience),
-    courses: engineer.courses,
-    certifications: engineer.certifications,
-    capabilities: engineer.capabilities,
-    skills: engineer.skills,
-  },
-]);
-
-if (error) {
-  console.error(error);
-  alert(error.message);
-  return;
-}
-
-await loadEngineers();
+      setEngineers((current) => [...current, engineer]);
     }
 
     setIsAddOpen(false);
@@ -466,53 +427,46 @@ await loadEngineers();
           </div>
         </section>
 
-        <section className="top-grid">
-          <div className="card add-engineer-card">
-            <div className="section-title add-engineer-title">
-              <div>
-                <h2>Engineers</h2>
-                <p>Add a new profile or edit an existing one.</p>
-              </div>
-              <button className="primary" onClick={openAddModal}>
-                + Add Engineer
-              </button>
-            </div>
+        <div className="add-engineer-bar">
+          <span>Manage engineer profiles</span>
+          <button className="primary" onClick={openAddModal}>
+            + Add Engineer
+          </button>
+        </div>
+
+        <div className="card">
+          <div className="section-title">
+            <h2>Project Requirements</h2>
+            <p>Select required skills, then match or build a team.</p>
           </div>
 
-          <div className="card">
-            <div className="section-title">
-              <h2>Project Requirements</h2>
-              <p>Select required skills, then match or build a team.</p>
-            </div>
+          <div className="requirements">
+            {skillOptions.map((skill) => {
+              const active = projectSkills.includes(skill);
 
-            <div className="requirements">
-              {skillOptions.map((skill) => {
-                const active = projectSkills.includes(skill);
-
-                return (
-                  <button
-                    className={active ? "requirement active" : "requirement"}
-                    key={skill}
-                    type="button"
-                    onClick={() => toggleProjectSkill(skill)}
-                  >
-                    <span>{skill}</span>
-                    <strong>{active ? "Selected" : "Add"}</strong>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="actions">
-              <button className="primary" onClick={matchEngineers}>
-                Match
-              </button>
-              <button className="dark" onClick={buildSmartTeam}>
-                Smart Team
-              </button>
-            </div>
+              return (
+                <button
+                  className={active ? "requirement active" : "requirement"}
+                  key={skill}
+                  type="button"
+                  onClick={() => toggleProjectSkill(skill)}
+                >
+                  <span>{skill}</span>
+                  <strong>{active ? "Selected" : "Add"}</strong>
+                </button>
+              );
+            })}
           </div>
-        </section>
+
+          <div className="actions">
+            <button className="primary" onClick={matchEngineers}>
+              Match
+            </button>
+            <button className="dark" onClick={buildSmartTeam}>
+              Smart Team
+            </button>
+          </div>
+        </div>
 
         <section className="content-grid">
           <div className="card engineers-card">
@@ -931,23 +885,28 @@ body {
   font-size: 13px;
 }
 
-.add-engineer-card {
-  display: flex;
-  align-items: center;
-}
-
-.add-engineer-title {
+.add-engineer-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  width: 100%;
-  margin-bottom: 0;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
 }
 
-.add-engineer-title .primary {
+.add-engineer-bar span {
+  color: #475467;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.add-engineer-bar .primary {
   flex: 0 0 auto;
   white-space: nowrap;
+  min-height: 36px;
 }
 
 .form-grid {
@@ -1024,7 +983,7 @@ textarea {
 
 .requirements {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
 }
 
