@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
+import { supabase } from "./supabase";
 const skillOptions = [
   "Networking",
   "Security",
@@ -145,15 +145,8 @@ const skillKeywords = {
   ],
 };
 
-function loadEngineers() {
-  try {
-    const saved = localStorage.getItem("engineers");
-    const parsed = saved ? JSON.parse(saved) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+
+
 
 function hasSkillMatch(skill, text) {
   const lowerText = String(text || "").toLowerCase();
@@ -174,7 +167,7 @@ function Badge({ children }) {
 }
 
 export default function App() {
-  const [engineers, setEngineers] = useState(loadEngineers);
+  const [engineers, setEngineers] = useState([]);
   const [name, setName] = useState("");
   const [experience, setExperience] = useState("");
   const [courses, setCourses] = useState("");
@@ -188,9 +181,23 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem("engineers", JSON.stringify(engineers));
-  }, [engineers]);
+ useEffect(() => {
+  loadEngineers();
+}, []);
+
+async function loadEngineers() {
+  const { data, error } = await supabase
+    .from("engineers")
+    .select("*")
+    .order("id", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setEngineers(data || []);
+}
 
   useEffect(() => {
     if (!isAddOpen) return;
