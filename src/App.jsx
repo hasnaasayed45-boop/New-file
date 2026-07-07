@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "./supabase";
+
 const skillOptions = [
   "Networking",
   "Security",
@@ -145,8 +145,15 @@ const skillKeywords = {
   ],
 };
 
-
-
+function loadEngineers() {
+  try {
+    const saved = localStorage.getItem("engineers");
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function hasSkillMatch(skill, text) {
   const lowerText = String(text || "").toLowerCase();
@@ -167,7 +174,7 @@ function Badge({ children }) {
 }
 
 export default function App() {
-  const [engineers, setEngineers] = useState([]);
+  const [engineers, setEngineers] = useState(loadEngineers);
   const [name, setName] = useState("");
   const [experience, setExperience] = useState("");
   const [courses, setCourses] = useState("");
@@ -181,23 +188,9 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
 
- useEffect(() => {
-  loadEngineers();
-}, []);
-
-async function loadEngineers() {
-  const { data, error } = await supabase
-    .from("engineers")
-    .select("*")
-    .order("id", { ascending: false });
-
-  if (error) {
-    console.error(error);
-    return;
-  }
-
-  setEngineers(data || []);
-}
+  useEffect(() => {
+    localStorage.setItem("engineers", JSON.stringify(engineers));
+  }, [engineers]);
 
   useEffect(() => {
     if (!isAddOpen) return;
@@ -248,7 +241,7 @@ async function loadEngineers() {
     resetForm();
   }
 
-  async function addOrUpdateEngineer() {
+  function addOrUpdateEngineer() {
     if (!name.trim()) return;
 
     const engineer = {
@@ -261,46 +254,13 @@ async function loadEngineers() {
       skills,
     };
 
-   if (editingId) {
-  const { error } = await supabase
-    .from("engineers")
-    .update({
-      name,
-      experience: Number(experience),
-      courses,
-      certifications,
-      capabilities,
-      skills,
-    })
-    .eq("id", editingId);
-
-  if (error) {
-    console.error(error);
-    alert(error.message);
-    return;
-  }
-} else {
-  const { error } = await supabase
-    .from("engineers")
-    .insert([
-      {
-        name,
-        experience: Number(experience),
-        courses,
-        certifications,
-        capabilities,
-        skills,
-      },
-    ]);
-
-  if (error) {
-    console.error(error);
-    alert(error.message);
-    return;
-  }
-}
-
-await loadEngineers();
+    if (editingId) {
+      setEngineers((current) =>
+        current.map((item) => (item.id === editingId ? engineer : item))
+      );
+    } else {
+      setEngineers((current) => [...current, engineer]);
+    }
 
     setIsAddOpen(false);
     resetForm();
