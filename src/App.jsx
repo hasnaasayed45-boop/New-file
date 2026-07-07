@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
+import { supabase } from "./supabase";
 const skillOptions = [
   "Networking",
   "Security",
@@ -145,15 +145,20 @@ const skillKeywords = {
   ],
 };
 
-function loadEngineers() {
-  try {
-    const saved = localStorage.getItem("engineers");
-    const parsed = saved ? JSON.parse(saved) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+async function loadEngineers() {
+  const { data, error } = await supabase
+    .from("engineers")
+    .select("*")
+    .order("id", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
   }
+
+  setEngineers(data || []);
 }
+
 
 function hasSkillMatch(skill, text) {
   const lowerText = String(text || "").toLowerCase();
@@ -174,7 +179,7 @@ function Badge({ children }) {
 }
 
 export default function App() {
-  const [engineers, setEngineers] = useState(loadEngineers);
+  const [engineers, setEngineers] = useState([]);
   const [name, setName] = useState("");
   const [experience, setExperience] = useState("");
   const [courses, setCourses] = useState("");
@@ -189,8 +194,8 @@ export default function App() {
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem("engineers", JSON.stringify(engineers));
-  }, [engineers]);
+  loadEngineers();
+}, []);
 
   useEffect(() => {
     if (!isAddOpen) return;
@@ -241,35 +246,66 @@ export default function App() {
     resetForm();
   }
 
-  function addOrUpdateEngineer() {
-    if (!name.trim()) return;
+  async function addOrUpdateEngineer() {
+  if (!name.trim()) return;
 
-    const engineer = {
-      id: editingId || Date.now(),
-      name: name.trim(),
-      experience,
-      courses,
-      certifications,
-      capabilities,
-      skills,
-    };
+  const engineerData = {
+    name: name.trim(),
+    experience: Number(experience),
+    courses,
+    certifications,
+    capabilities,
+    skills,
+  };
 
-    if (editingId) {
-      setEngineers((current) =>
-        current.map((item) => (item.id === editingId ? engineer : item))
-      );
-    } else {
-      setEngineers((current) => [...current, engineer]);
+  if (editingId) {
+    const { error } = await supabase
+      .from("engineers")
+      .update(engineerData)
+      .eq("id", editingId);
+
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      return;
     }
 
-    setIsAddOpen(false);
-    resetForm();
+  } else {
+    const { error } = await supabase
+      .from("engineers")
+      .insert([engineerData]);
+
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      return;
+    }
   }
 
-  function deleteEngineer(id) {
-    setEngineers((current) => current.filter((engineer) => engineer.id !== id));
-    setResults((current) => current.filter((engineer) => engineer.id !== id));
+  await loadEngineers();
+
+  setIsAddOpen(false);
+  resetForm();
+}
+
+ async function deleteEngineer(id) {
+  const { error } = await supabase
+    .from("engineers")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
   }
+
+  await loadEngineers();
+
+  setResults((current) =>
+    current.filter((engineer) => engineer.id !== id)
+  );
+}
 
   function editEngineer(engineer) {
     setName(engineer.name || "");
