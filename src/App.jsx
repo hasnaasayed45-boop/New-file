@@ -248,7 +248,7 @@ async function loadEngineers() {
     resetForm();
   }
 
-  function addOrUpdateEngineer() {
+  async function addOrUpdateEngineer() {
     if (!name.trim()) return;
 
     const engineer = {
@@ -261,13 +261,46 @@ async function loadEngineers() {
       skills,
     };
 
-    if (editingId) {
-      setEngineers((current) =>
-        current.map((item) => (item.id === editingId ? engineer : item))
-      );
-    } else {
-      setEngineers((current) => [...current, engineer]);
-    }
+   if (editingId) {
+  const { error } = await supabase
+    .from("engineers")
+    .update({
+      name,
+      experience: Number(experience),
+      courses,
+      certifications,
+      capabilities,
+      skills,
+    })
+    .eq("id", editingId);
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
+  }
+} else {
+  const { error } = await supabase
+    .from("engineers")
+    .insert([
+      {
+        name,
+        experience: Number(experience),
+        courses,
+        certifications,
+        capabilities,
+        skills,
+      },
+    ]);
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
+  }
+}
+
+await loadEngineers();
 
     setIsAddOpen(false);
     resetForm();
