@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
+import { supabase } from "./supabase";
 const skillOptions = [
   "Networking",
   "Security",
@@ -145,15 +145,7 @@ const skillKeywords = {
   ],
 };
 
-function loadEngineers() {
-  try {
-    const saved = localStorage.getItem("engineers");
-    const parsed = saved ? JSON.parse(saved) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+
 
 function hasSkillMatch(skill, text) {
   const lowerText = String(text || "").toLowerCase();
@@ -174,7 +166,7 @@ function Badge({ children }) {
 }
 
 export default function App() {
-  const [engineers, setEngineers] = useState(loadEngineers);
+  const [engineers, setEngineers] = useState([]);
   const [name, setName] = useState("");
   const [experience, setExperience] = useState("");
   const [courses, setCourses] = useState("");
@@ -186,10 +178,38 @@ export default function App() {
   const [results, setResults] = useState([]);
   const [team, setTeam] = useState({});
   const [search, setSearch] = useState("");
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem("engineers", JSON.stringify(engineers));
-  }, [engineers]);
+  loadEngineers();
+}, []);
+
+async function loadEngineers() {
+  const { data, error } = await supabase
+    .from("engineers")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setEngineers(data || []);
+}
+
+  useEffect(() => {
+    if (!isAddOpen) return;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        closeAddModal();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isAddOpen]);
 
   const filteredEngineers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -217,7 +237,17 @@ export default function App() {
     setEditingId(null);
   }
 
-  function addOrUpdateEngineer() {
+  function openAddModal() {
+    resetForm();
+    setIsAddOpen(true);
+  }
+
+  function closeAddModal() {
+    setIsAddOpen(false);
+    resetForm();
+  }
+
+  async function addOrUpdateEngineer() {
     if (!name.trim()) return;
 
     const engineer = {
@@ -231,13 +261,47 @@ export default function App() {
     };
 
     if (editingId) {
-      setEngineers((current) =>
-        current.map((item) => (item.id === editingId ? engineer : item))
-      );
+      const { error } = await supabase
+  .from("engineers")
+  .update({
+    name: engineer.name,
+    experience: Number(engineer.experience),
+    courses: engineer.courses,
+    certifications: engineer.certifications,
+    capabilities: engineer.capabilities,
+    skills: engineer.skills,
+  })
+  .eq("id", editingId);
+
+if (error) {
+  console.error(error);
+  alert(error.message);
+  return;
+}
+
+await loadEngineers();
     } else {
-      setEngineers((current) => [...current, engineer]);
+      const { error } = await supabase.from("engineers").insert([
+  {
+    name: engineer.name,
+    experience: Number(engineer.experience),
+    courses: engineer.courses,
+    certifications: engineer.certifications,
+    capabilities: engineer.capabilities,
+    skills: engineer.skills,
+  },
+]);
+
+if (error) {
+  console.error(error);
+  alert(error.message);
+  return;
+}
+
+await loadEngineers();
     }
 
+    setIsAddOpen(false);
     resetForm();
   }
 
@@ -254,6 +318,7 @@ export default function App() {
     setCapabilities(engineer.capabilities || "");
     setSkills({ ...defaultSkills, ...(engineer.skills || {}) });
     setEditingId(engineer.id);
+    setIsAddOpen(true);
   }
 
   function toggleProjectSkill(skill) {
@@ -402,88 +467,15 @@ export default function App() {
         </section>
 
         <section className="top-grid">
-          <div className="card">
-            <div className="section-title">
-              <h2>{editingId ? "Edit Engineer" : "Add Engineer"}</h2>
-              <p>Add engineer profile, skills, courses, and certifications.</p>
-            </div>
-
-            <div className="form-grid">
-              <label>
-                <span>Full Name</span>
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Engineer name"
-                />
-              </label>
-
-              <label>
-                <span>Experience</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={experience}
-                  onChange={(event) => setExperience(event.target.value)}
-                  placeholder="Years"
-                />
-              </label>
-
-              <label className="wide">
-                <span>Courses</span>
-                <textarea
-                  value={courses}
-                  onChange={(event) => setCourses(event.target.value)}
-                  placeholder="CCNA, Azure, Kubernetes..."
-                />
-              </label>
-
-              <label className="wide">
-                <span>Certifications</span>
-                <textarea
-                  value={certifications}
-                  onChange={(event) => setCertifications(event.target.value)}
-                  placeholder="CCNP, AZ-104, Security+..."
-                />
-              </label>
-
-              <label className="wide">
-                <span>Capabilities</span>
-                <textarea
-                  value={capabilities}
-                  onChange={(event) => setCapabilities(event.target.value)}
-                  placeholder="Routing, firewall policies, cloud migration..."
-                />
-              </label>
-            </div>
-
-            <div className="skill-grid">
-              {skillOptions.map((skill) => (
-                <label className="skill-control" key={skill}>
-                  <span>{skill}</span>
-                  <div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="10"
-                      value={skills[skill] || 0}
-                      onChange={(event) => updateSkill(skill, event.target.value)}
-                    />
-                    <strong>{skills[skill] || 0}</strong>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            <div className="actions">
-              <button className="primary" onClick={addOrUpdateEngineer}>
-                {editingId ? "Update Engineer" : "Add Engineer"}
+          <div className="card add-engineer-card">
+            <div className="section-title add-engineer-title">
+              <div>
+                <h2>Engineers</h2>
+                <p>Add a new profile or edit an existing one.</p>
+              </div>
+              <button className="primary" onClick={openAddModal}>
+                + Add Engineer
               </button>
-              {editingId && (
-                <button className="secondary" onClick={resetForm}>
-                  Cancel
-                </button>
-              )}
             </div>
           </div>
 
@@ -666,6 +658,109 @@ export default function App() {
           </div>
         </section>
       </main>
+
+      {isAddOpen && (
+        <div className="modal-overlay" onClick={closeAddModal}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <h2>{editingId ? "Edit Engineer" : "Add Engineer"}</h2>
+                <p>Add engineer profile, skills, courses, and certifications.</p>
+              </div>
+              <button
+                className="modal-close"
+                onClick={closeAddModal}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="form-grid">
+                <label>
+                  <span>Full Name</span>
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Engineer name"
+                  />
+                </label>
+
+                <label>
+                  <span>Experience</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={experience}
+                    onChange={(event) => setExperience(event.target.value)}
+                    placeholder="Years"
+                  />
+                </label>
+
+                <label className="wide">
+                  <span>Courses</span>
+                  <textarea
+                    value={courses}
+                    onChange={(event) => setCourses(event.target.value)}
+                    placeholder="CCNA, Azure, Kubernetes..."
+                  />
+                </label>
+
+                <label className="wide">
+                  <span>Certifications</span>
+                  <textarea
+                    value={certifications}
+                    onChange={(event) => setCertifications(event.target.value)}
+                    placeholder="CCNP, AZ-104, Security+..."
+                  />
+                </label>
+
+                <label className="wide">
+                  <span>Capabilities</span>
+                  <textarea
+                    value={capabilities}
+                    onChange={(event) => setCapabilities(event.target.value)}
+                    placeholder="Routing, firewall policies, cloud migration..."
+                  />
+                </label>
+              </div>
+
+              <div className="skill-grid">
+                {skillOptions.map((skill) => (
+                  <label className="skill-control" key={skill}>
+                    <span>{skill}</span>
+                    <div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={skills[skill] || 0}
+                        onChange={(event) => updateSkill(skill, event.target.value)}
+                      />
+                      <strong>{skills[skill] || 0}</strong>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="secondary" onClick={closeAddModal}>
+                Cancel
+              </button>
+              <button className="primary" onClick={addOrUpdateEngineer}>
+                {editingId ? "Update Engineer" : "Add Engineer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -834,6 +929,25 @@ body {
   margin: 6px 0 0;
   color: #667085;
   font-size: 13px;
+}
+
+.add-engineer-card {
+  display: flex;
+  align-items: center;
+}
+
+.add-engineer-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.add-engineer-title .primary {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .form-grid {
@@ -1085,6 +1199,75 @@ button {
   line-height: 1.5;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+
+.modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: 88vh;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 20px;
+}
+
+.modal-header p {
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.modal-close {
+  min-height: 32px;
+  width: 32px;
+  padding: 0;
+  border-radius: 8px;
+  background: #f2f4f7;
+  color: #344054;
+  font-size: 20px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px;
+  border-top: 1px solid #edf0f3;
+}
+
 @media (max-width: 980px) {
   .top-grid,
   .content-grid {
@@ -1109,6 +1292,10 @@ button {
 
   .engineer-head {
     flex-direction: column;
+  }
+
+  .modal-overlay {
+    padding: 12px;
   }
 }
 `;
